@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guardian Gesture</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        .datetime {
+            color: #007BFF;
+            text-align: center;
+            font-size: 18px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        .image-grid {
+            margin-top: 5%;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .image-container {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            padding: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            background-color: #fff;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .image-container:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        }
+        img {
+            width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 4px;
+        }
+        .image-caption {
+            text-align: center;
+            margin-top: 5px;
+            font-size: 14px;
+            color: #666;
+        }
+        .location-alert {
+            position: fixed;
+            top: 8%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 69, 58, 0.9);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .location-alert:hover {
+            background-color: rgba(255, 69, 58, 1);
+        }
+        .close-alert {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var socket = io.connect(); // Establish connection to the server
+
+            // Function to show notifications
+            function showNotification(title, body) {
+                if (Notification.permission === 'granted') {
+                    new Notification(title, { body });
+                } else if (Notification.permission !== 'denied') {
+                    Notification.requestPermission().then(function(permission) {
+                        if (permission === 'granted') {
+                            new Notification(title, { body });
+                        }
+                    });
+                }
+            }
+
+            // Handle new image event
+            socket.on('new_image', function(data) {
+                console.log('Received new image:', data.filename);
+                var imageGrid = document.querySelector('.image-grid');
+                var imageContainer = document.createElement('div');
+                imageContainer.className = 'image-container';
+                var img = document.createElement('img');
+                img.src = '/image/' + data.filename; // Ensure the correct path
+                img.alt = data.filename;
+                imageContainer.appendChild(img);
+                imageGrid.appendChild(imageContainer);
+
+                if (canShowNotification) {
+                    showNotification("Emergency Detected");
+
+                    // Disable further calls for 2 minutes
+                    canShowNotification = false;
+                    setTimeout(() => {
+                        canShowNotification = true;
+                    }, 2 * 60 * 1000); // 2 minutes in milliseconds
+                }
+            });
+
+            // Handle location data event
+            socket.on('location_data', function(data) {
+                console.log('Received location data:', data);
+                var alertBox = document.querySelector('.location-alert');
+                if (data) {
+                    alertBox.innerHTML = `<strong>Emergency Alert &nbsp;:&nbsp;</strong> &nbsp; Latitude &nbsp;: ${data.latitude},&nbsp; Longitude &nbsp;: ${data.longitude}`;
+                    alertBox.style.display = 'flex';
+                    alertBox.onclick = function() {
+                        window.open(`https://www.google.com/maps?q=${data.latitude},${data.longitude}`, '_blank');
+                    };
+                } else {
+                    alertBox.style.display = 'none';
+                }
+            });
+
+            // Function to update date and time
+            function updateDateTime() {
+                var now = new Date();
+                var dateTimeString = now.toLocaleString('en-US', {
+                    dateStyle: 'full',
+                    timeStyle: 'medium'
+                });
+                document.getElementById('datetime').textContent = dateTimeString;
+            }
+
+            // Update date and time every second
+            setInterval(updateDateTime, 1000);
+        });
+    </script>
+</head>
+<body>
+    <div id="datetime" class="datetime"></div>
+
+    <div class="location-alert" style="display: none;">
+        <div>No location data available.</div>
+        <button class="close-alert" onclick="this.parentElement.style.display='none'">&times;</button>
+    </div>
+
+    <div class="image-grid">
+        <!-- This will be populated dynamically by the server -->
+    </div>
+</body>
+</html>
